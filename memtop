@@ -1,9 +1,8 @@
 #!/usr/bin/ruby
 
-MEMTOP_VERSION="memtop 1.0"
+MEMTOP_VERSION="memtop 1.1"
 
 ENV['PATH']="/bin:/usr/bin"
-PIDS_PER_PMAP = 1000
 
 TOTAL_MEM = File.open('/proc/meminfo'){|f| f.gets}.split(' ')[1].to_i
 
@@ -34,6 +33,12 @@ end
 
 def assert(condition); raise if condition == false; end
 
+
+
+# Get DATA from PS and PMAP utilities
+
+PIDS_PER_PMAP = 1000
+
 proc_data = `ps ah -o 'pid,#{U},cmd'`.split("\n").collect{|s|s.split(" ")}
 proc_data = proc_data.select{|pid, user, cmd| user == USER} if !USER.nil?
 pids = proc_data.collect{|pid, user, cmd| pid.to_i}
@@ -57,6 +62,8 @@ pmap_data = {}
 end
 
 assert pids.size == pmap_data.size # TEST
+
+
 
 seen_addresses = {}
 results = []

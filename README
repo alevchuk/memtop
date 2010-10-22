@@ -1,0 +1,16 @@
+Uses standard Linux utilities ps and pmap.
+
+Requirements:
+  Ruby 1.8 or higher
+
+For help run:
+  memtop -h
+
+No installation steps are required.
+
+The following can be done for convenience (if you know what you are doing):
+  1. Move memtop to /usr/local/sbin
+  2. Add "%admin  ALL=(root) NOPASSWD: /usr/local/sbin/memtop" to sudoers
+
+For more info visit:
+  http://biocluster.ucr.edu/~alevchuk/memtop
