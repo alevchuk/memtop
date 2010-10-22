@@ -1,0 +1,134 @@
+#!/usr/bin/ruby
+
+MEMTOP_VERSION="memtop 1.0"
+
+ENV['PATH']="/bin:/usr/bin"
+PIDS_PER_PMAP = 1000
+
+TOTAL_MEM = File.open('/proc/meminfo'){|f| f.gets}.split(' ')[1].to_i
+
+# Presentation
+U = ARGV.include?('-n') ? 'uid' : 'user'
+user = nil; ARGV.each_with_index{|v,i| user = ARGV[i+1] if v == '-u'}; USER = user
+COLS = `tput cols`.to_i
+ROWS = `tput lines`.to_i
+row_offset = 0
+
+# Usage and Version
+ARGV.delete_if{|i|!(i =~ /^-/)}
+if ARGV.collect{|i| ['-q', '-n', '-u', '--version', '-h'].include?(i)}.include?(false)
+  STDERR.puts "Invalid Arguments: #{ARGV.inspect}"
+  exit
+end
+if ARGV.include? "-h"
+  STDERR.puts "Usage: memtop [-q] [-n] [-u username] [--version]" 
+  STDERR.puts
+  STDERR.puts "  -q     remove header, and do not truncate to terminal size" 
+  STDERR.puts "  -n     numeric user ids"
+  STDERR.puts "  -u x   display only user x"
+  exit
+end
+if ARGV.include? "--version"
+ STDERR.puts MEMTOP_VERSION; exit
+end
+
+def assert(condition); raise if condition == false; end
+
+proc_data = `ps ah -o 'pid,#{U},cmd'`.split("\n").collect{|s|s.split(" ")}
+proc_data = proc_data.select{|pid, user, cmd| user == USER} if !USER.nil?
+pids = proc_data.collect{|pid, user, cmd| pid.to_i}
+pmap_data = {}
+
+(0..(pids.size / PIDS_PER_PMAP)).each do |i|
+  pids_set = pids[PIDS_PER_PMAP*i...(PIDS_PER_PMAP*(i+1))]
+  next if pids_set == []
+
+  pids_set.each {|pid| pmap_data[pid] = []}
+
+  pid = nil
+  `pmap -xq #{pids_set.join(' ')}`.split("\n").each do |s|
+    if s =~ /^([0-9]+): /
+      pid = $1.to_i
+    else
+      address, size = s.split(' ')
+      pmap_data[pid].push [address, size.to_i]
+    end
+  end
+end
+
+assert pids.size == pmap_data.size # TEST
+
+seen_addresses = {}
+results = []
+pmap_data.sort.each do |i|
+  pid, pmap = i
+
+  size_total = 0
+  size_responsible_for = 0
+  pmap.each do |address, size|
+    size_total += size
+    size_responsible_for += size if seen_addresses[address].nil?
+    seen_addresses[address] = true
+  end
+
+  if size_responsible_for != 0 and size_total != 0
+    results.push [pid, size_responsible_for, size_total]
+  end
+end
+
+if !ARGV.include? "-q"
+  row_offset += 3
+
+  total_taken = 0
+  pmap_data.each_pair do |pid, info|
+    info.each {|address, size| total_taken += size}
+  end
+
+  puts ("Total mem: #{(TOTAL_MEM / 1024)} MB, " +
+    "Mem taken by user(s): #{total_taken / 1024} MB (#{total_taken*100/TOTAL_MEM}%)" +
+    "")[0...COLS]
+
+  b = "\e[0m\e[32;47m"
+  e = "\e[0m"
+
+  puts b +
+       [
+        "PID".rjust(7),
+        "USER      %SHARED",
+        "%MEM".rjust(5), 
+        "COMMAND",
+        " " * COLS,
+       ].join(" ")[0...COLS] +
+       e
+end
+
+
+by_pid = {}
+proc_data.each do |s|
+  pid, user = s
+  cmd = s[2..-1].join(" ")
+  by_pid[pid.to_i] = [user, cmd]
+end
+
+results.sort{|x,y| x[1] <=> y[1]}.reverse.each_with_index do |i, row|
+  break if !ARGV.include?("-q") and row >= ROWS - row_offset
+
+  pid, size_responsible_for, size_total = i
+  user, cmd = by_pid[pid]
+
+  percent_resp = "%.2f" % ((1 - (size_responsible_for.to_f / size_total))*100)
+
+  percent_mem = "%.2f" % (size_responsible_for.to_f * 100 / TOTAL_MEM)
+
+  line = ["#{pid}".rjust(7),
+    "#{user}".ljust(10),
+    "#{percent_resp}".rjust(6),
+    "#{percent_mem}".rjust(5),
+    "#{cmd}"].join(" ")
+
+  puts ARGV.include?("-q") ? line : line[0...COLS]
+end
+
+if !ARGV.include?("-q")
+  ((ROWS - row_offset) - results.size).times{puts}
+end
