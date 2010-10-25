@@ -1,8 +1,11 @@
 #!/usr/bin/ruby
 
-MEMTOP_VERSION="memtop 1.1"
-
 ENV['PATH']="/bin:/usr/bin"
+
+MEMTOP_VERSION = "memtop 1.1"
+# PROCPS_VERSION =
+#   `pmap --version`.split(' ')[-1].scan(/[0-9]+/).collect{|i|i.to_i}
+# # p PROCPS_VERSION # DEBUG
 
 TOTAL_MEM = File.open('/proc/meminfo'){|f| f.gets}.split(' ')[1].to_i
 
@@ -40,6 +43,7 @@ def assert(condition); raise if condition == false; end
 PIDS_PER_PMAP = 1000
 
 proc_data = `ps ah -o 'pid,#{U},cmd'`.split("\n").collect{|s|s.split(" ")}
+#proc_data.each{|i| p i}
 proc_data = proc_data.select{|pid, user, cmd| user == USER} if !USER.nil?
 pids = proc_data.collect{|pid, user, cmd| pid.to_i}
 pmap_data = {}
@@ -51,7 +55,8 @@ pmap_data = {}
   pids_set.each {|pid| pmap_data[pid] = []}
 
   pid = nil
-  `pmap -xq #{pids_set.join(' ')}`.split("\n").each do |s|
+  `pmap -dq #{pids_set.join(' ')}`.split("\n").each do |s|
+    # p s # DEBUGING
     if s =~ /^([0-9]+): /
       pid = $1.to_i
     else
