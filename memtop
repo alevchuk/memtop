@@ -1,4 +1,4 @@
-#!/usr/bin/ruby
+#!/usr/bin/env ruby
 
 ENV['PATH']="/bin:/usr/bin"
 
